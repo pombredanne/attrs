@@ -8,10 +8,10 @@ from ._make import Attribute, NOTHING, fields
 
 def asdict(inst, recurse=True, filter=None, dict_factory=dict):
     """
-    Return the ``attrs`` attribute values of *i* as a dict.  Optionally recurse
-    into other ``attrs``-decorated classes.
+    Return the ``attrs`` attribute values of *inst* as a dict. Optionally
+    recurse into other ``attrs``-decorated classes.
 
-    :param inst: Instance of a ``attrs``-decorated class.
+    :param inst: Instance of an ``attrs``-decorated class.
 
     :param bool recurse: Recurse into classes that are also
         ``attrs``-decorated.
@@ -60,23 +60,17 @@ def asdict(inst, recurse=True, filter=None, dict_factory=dict):
     return rv
 
 
-def has(cl):
+def has(cls):
     """
-    Check whether *cl* is a class with ``attrs`` attributes.
+    Check whether *cls* is a class with ``attrs`` attributes.
 
-    :param cl: Class to introspect.
-    :type cl: type
+    :param type cls: Class to introspect.
 
-    :raise TypeError: If *cl* is not a class.
+    :raise TypeError: If *cls* is not a class.
 
     :rtype: :class:`bool`
     """
-    try:
-        fields(cl)
-    except ValueError:
-        return False
-    else:
-        return True
+    return getattr(cls, "__attrs_attrs__", None) is not None
 
 
 def assoc(inst, **changes):

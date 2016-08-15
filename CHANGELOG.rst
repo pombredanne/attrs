@@ -8,11 +8,34 @@ The third digit is only for regressions.
 16.1.0 (UNRELEASED)
 -------------------
 
+Backward-incompatible changes:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- All instances where function arguments were called ``cl`` have been changed to the more Pythonic ``cls``.
+  Since it was always the first argument, it's doubtful anyone ever called those function with in the keyword form.
+  If so, sorry for any breakage but there's no practical deprecation path to solve this ugly wart.
+
+
+Deprecations:
+^^^^^^^^^^^^^
+
+- Accessing ``Attribute`` instances on class objects is now deprecated and will stop working in 2017.
+  If you need introspection please use the ``__attrs_attrs__`` attribute that carries them too.
+  In the future, the attributes that are defined on the class body and are usually overwritten in your ``__init__`` method are simply removed after ``@attr.s`` has been applied.
+
+  This will remove the confusing error message if you write your own ``__init__`` and forget to initialize some attribute.
+  Instead you will get a straightforward ``AttributeError``.
+  In other words: decorated classes will work more like plain Python classes which was always ``attrs``'s goal.
+
+
 Changes:
 ^^^^^^^^
 
 - ``attr.asdict``\ 's ``dict_factory`` arguments is now propagated on recursion.
   `#45 <https://github.com/hynek/attrs/issues/45>`_
+- ``attr.asdict``, ``attr.has`` and ``attr.fields`` are significantly faster.
+  `#48 <https://github.com/hynek/attrs/issues/48>`_
+  `#51 <https://github.com/hynek/attrs/issues/51>`_
 
 
 ----

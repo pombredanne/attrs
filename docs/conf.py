@@ -13,7 +13,6 @@
 # serve to show the default.
 
 import codecs
-import datetime
 import os
 import re
 
@@ -80,10 +79,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'attrs'
-year = datetime.date.today().year
-copyright = u'2015{0}, Hynek Schlawack'.format(
-    u'-{0}'.format(year) if year != 2015 else u""
-)
+copyright = u'2015, Hynek Schlawack'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -303,4 +299,6 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/2': None}
+intersphinx_mapping = {
+    "https://docs.python.org/3": None,
+}

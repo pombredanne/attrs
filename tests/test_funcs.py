@@ -10,17 +10,17 @@ import pytest
 
 from hypothesis import given, strategies as st
 
-from . import simple_classes, nested_classes
+from .utils import simple_classes, nested_classes
 
 from attr._funcs import (
     asdict,
     assoc,
-    fields,
     has,
 )
 from attr._make import (
     attr,
     attributes,
+    fields,
 )
 
 MAPPING_TYPES = (dict, OrderedDict)
@@ -216,5 +216,5 @@ class TestAssoc(object):
         with pytest.raises(ValueError) as e:
             assoc(C(1), y=2)
         assert (
-            "y is not an attrs attribute on {cl!r}.".format(cl=C),
+            "y is not an attrs attribute on {cls!r}.".format(cls=C),
         ) == e.value.args

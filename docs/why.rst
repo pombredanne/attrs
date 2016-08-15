@@ -4,6 +4,9 @@ Why not…
 ========
 
 
+If you'd like third party's account why ``attrs`` is great, have a look at Glyph's `The One Python Library Everyone Needs <https://glyph.twistedmatrix.com/2016/08/attrs.html>`_!
+
+
 …tuples?
 --------
 
@@ -13,7 +16,7 @@ Readability
 
 What makes more sense while debugging::
 
-   Point(x=1, x=2)
+   Point(x=1, y=2)
 
 or::
 
@@ -54,7 +57,7 @@ Adding an attribute to a class concerns only those who actually care about that 
 …namedtuples?
 -------------
 
-The difference between :func:`collections.namedtuple`\ s and classes decorated by ``attrs`` is that the latter are type-sensitive and less typing aside regular classes:
+The difference between :func:`collections.namedtuple`\ s and classes decorated by ``attrs`` is that the latter are type-sensitive and require less typing as compared with regular classes:
 
 
 .. doctest::
@@ -78,7 +81,7 @@ The difference between :func:`collections.namedtuple`\ s and classes decorated b
    1
 
 
-…while namedtuple’s purpose is *explicitly* to behave like tuples:
+…while a namedtuple is *explicitly* intended to behave like a tuple:
 
 
 .. doctest::
@@ -94,7 +97,7 @@ The difference between :func:`collections.namedtuple`\ s and classes decorated b
 
 This can easily lead to surprising and unintended behaviors.
 
-Other than that, ``attrs`` also adds nifty features like validators or default values.
+Other than that, ``attrs`` also adds nifty features like validators and default values.
 
 .. _tuple: https://docs.python.org/2/tutorial/datastructures.html#tuples-and-sequences
 
@@ -178,8 +181,8 @@ If you don't care and like typing, I'm not gonna stop you.
 But if you ever get sick of the repetitiveness, ``attrs`` will be waiting for you. :)
 
 
-…characteristic
----------------
+…characteristic?
+----------------
 
 `characteristic <https://characteristic.readthedocs.io/>`_ is a very similar and fairly popular project of mine.
 So why the self-fork?
