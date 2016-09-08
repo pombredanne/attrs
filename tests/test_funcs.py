@@ -79,7 +79,8 @@ class TestAsDict(object):
                     assert isinstance(obj_dict[field.name], dict_class)
                     for key, val in field_val.items():
                         if has(val.__class__):
-                            assert_proper_dict_class(val, obj_dict[key])
+                            assert_proper_dict_class(val,
+                                                     obj_dict[field.name][key])
 
         assert_proper_dict_class(obj, obj_dict)
 
@@ -104,6 +105,18 @@ class TestAsDict(object):
             "x": 1,
             "y": [{"x": 2, "y": 3}, {"x": 4, "y": 5}, "a"],
         } == asdict(C(1, container([C(2, 3), C(4, 5), "a"])))
+
+    @given(container=st.sampled_from(SEQUENCE_TYPES))
+    def test_lists_tuples_retain_type(self, container, C):
+        """
+        If recurse and retain_collection_types are True, also recurse
+        into lists and do not convert them into list.
+        """
+        assert {
+            "x": 1,
+            "y": container([{"x": 2, "y": 3}, {"x": 4, "y": 5}, "a"]),
+        } == asdict(C(1, container([C(2, 3), C(4, 5), "a"])),
+                    retain_collection_types=True)
 
     @given(st.sampled_from(MAPPING_TYPES))
     def test_dicts(self, C, dict_factory):
@@ -218,3 +231,14 @@ class TestAssoc(object):
         assert (
             "y is not an attrs attribute on {cls!r}.".format(cls=C),
         ) == e.value.args
+
+    def test_frozen(self):
+        """
+        Works on frozen classes.
+        """
+        @attributes(frozen=True)
+        class C(object):
+            x = attr()
+            y = attr()
+
+        assert C(3, 2) == assoc(C(1, 2), x=3)

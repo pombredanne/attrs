@@ -10,10 +10,9 @@ from hypothesis import given
 from hypothesis.strategies import booleans, sampled_from
 
 from attr import _config
-from attr._compat import PY3
+from attr._compat import PY2
 from attr._make import (
     Attribute,
-    NOTHING,
     _CountingAttr,
     _transform_attrs,
     attr,
@@ -157,7 +156,7 @@ class TestAttributes(object):
     """
     Tests for the `attributes` class decorator.
     """
-    @pytest.mark.skipif(PY3, reason="No old-style classes in Py3")
+    @pytest.mark.skipif(not PY2, reason="No old-style classes in Py3")
     def test_catches_old_style(self):
         """
         Raises TypeError on old-style classes.
@@ -259,7 +258,7 @@ class TestAttributes(object):
 
         assert sentinel == getattr(C, method_name)
 
-    @pytest.mark.skipif(not PY3, reason="__qualname__ is PY3-only.")
+    @pytest.mark.skipif(PY2, reason="__qualname__ is PY3-only.")
     @given(slots_outer=booleans(), slots_inner=booleans())
     def test_repr_qualname(self, slots_outer, slots_inner):
         """
@@ -292,29 +291,6 @@ class GC(object):
     @attributes
     class D(object):
         pass
-
-
-class TestAttribute(object):
-    """
-    Tests for `Attribute`.
-    """
-    def test_missing_argument(self):
-        """
-        Raises `TypeError` if an Argument is missing.
-        """
-        with pytest.raises(TypeError) as e:
-            Attribute(default=NOTHING, validator=None)
-        assert ("Missing argument 'name'.",) == e.value.args
-
-    def test_too_many_arguments(self):
-        """
-        Raises `TypeError` if extra arguments are passed.
-        """
-        with pytest.raises(TypeError) as e:
-            Attribute(name="foo", default=NOTHING,
-                      factory=NOTHING, validator=None,
-                      repr=True, cmp=True, hash=True, init=True, convert=None)
-        assert ("Too many arguments.",) == e.value.args
 
 
 class TestMakeClass(object):
@@ -426,6 +402,13 @@ class TestConvert(object):
         with pytest.raises(ZeroDivisionError):
             C(1, 2)
 
+    def test_frozen(self):
+        """
+        Converters circumvent immutability.
+        """
+        C = make_class("C", {"x": attr(convert=lambda v: int(v))}, frozen=True)
+        C("1")
+
 
 class TestValidate(object):
     """
@@ -465,8 +448,13 @@ class TestValidate(object):
             raise Exception(obj)
 
         C = make_class("C", {"x": attr(validator=raiser)})
-        assert 1 == C(1).x
+        c = C(1)
+        validate(c)
+        assert 1 == c.x
         _config._run_validators = True
+
+        with pytest.raises(Exception):
+            validate(c)
 
         with pytest.raises(Exception) as e:
             C(1)

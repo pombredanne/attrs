@@ -22,7 +22,7 @@ The simplest possible usage would be:
    >>> Empty() is Empty()
    False
 
-So in other words -- ``attrs``: useful even without actual attributes!
+So in other words: ``attrs`` is useful even without actual attributes!
 
 But you'll usually want some data on your classes, so let's add some:
 
@@ -48,14 +48,15 @@ By default, all features are added, so you immediately have a fully functional d
 
 As shown, the generated ``__init__`` method allows for both positional and keyword arguments.
 
-If playful naming turns you off, ``attrs`` comes with no-nonsense aliases:
+If playful naming turns you off, ``attrs`` comes with serious business aliases:
 
 .. doctest::
 
-   >>> @attr.attributes
+   >>> from attr import attrs, attrib
+   >>> @attrs
    ... class SeriousCoordinates(object):
-   ...     x = attr.attr()
-   ...     y = attr.attr()
+   ...     x = attrib()
+   ...     y = attrib()
    >>> SeriousCoordinates(1, 2)
    SeriousCoordinates(x=1, y=2)
    >>> attr.fields(Coordinates) == attr.fields(SeriousCoordinates)
@@ -221,7 +222,7 @@ And sometimes you even want mutable objects as default values (ever used acciden
    ...     socket = attr.ib()
    ...     @classmethod
    ...     def connect(cls, db_string):
-   ...        # connect somehow to db_string
+   ...        # ... connect somehow to db_string ...
    ...        return cls(socket=42)
    >>> @attr.s
    ... class ConnectionPool(object):
@@ -260,9 +261,9 @@ Although your initializers should be as dumb as possible, it can come in handy t
 That's when :func:`attr.ib`\ ’s ``validator`` argument comes into play.
 A validator is simply a callable that takes three arguments:
 
-#. The *instance* that's being validated.
-#. The *attribute* that it's validating
-#. and finally the *value* that is passed for it.
+#. the *instance* that's being validated,
+#. the *attribute* that it's validating, and finally
+#. the *value* that is passed for it.
 
 If the value does not pass the validator's standards, it just raises an appropriate exception.
 Since the validator runs *after* the instance is initialized, you can refer to other attributes while validating :
@@ -383,7 +384,7 @@ Slots
 -----
 
 By default, instances of classes have a dictionary for attribute storage.
-This wastes space for objects having very few instance variables.
+This wastes space for objects having very few data attributes.
 The space consumption can become significant when creating large numbers of instances.
 
 Normal Python classes can avoid using a separate dictionary for each instance of a class by `defining <https://docs.python.org/3.5/reference/datamodel.html#slots>`_ ``__slots__``.
@@ -443,16 +444,35 @@ Slot classes are a little different than ordinary, dictionary-backed classes:
 All in all, setting ``slots=True`` is usually a very good idea.
 
 
-Other Goodies
--------------
+Immutability
+------------
 
-Do you like Rich Hickey?
-I'm glad to report that Clojure's core feature is part of ``attrs``: `assoc <https://clojuredocs.org/clojure.core/assoc>`_!
-I guess that means Clojure can be shut down now, sorry Rich!
+Sometimes you have instances that shouldn't be changed after instantiation.
+Immutability is especially popular in functional programming and is generally a very good thing.
+If you'd like to enforce it, ``attrs`` will try to help:
 
 .. doctest::
 
-   >>> @attr.s
+   >>> @attr.s(frozen=True)
+   ... class C(object):
+   ...     x = attr.ib()
+   >>> i = C(1)
+   >>> i.x = 2
+   Traceback (most recent call last):
+      ...
+   attr.exceptions.FrozenInstanceError: can't set attribute
+   >>> i.x
+   1
+
+Please note that true immutability is impossible in Python but it will :ref:`get <how-frozen>` you 99% there.
+By themselves, immutable classes are useful for long-lived objects that should never change; like configurations for example.
+
+In order to use them in regular program flow, you'll need a way to easily create new instances with changed attributes.
+In Clojure that function is called `assoc <https://clojuredocs.org/clojure.core/assoc>`_ and ``attrs`` shamelessly imitates it: :func:`attr.assoc`:
+
+.. doctest::
+
+   >>> @attr.s(frozen=True)
    ... class C(object):
    ...     x = attr.ib()
    ...     y = attr.ib()
@@ -465,8 +485,12 @@ I guess that means Clojure can be shut down now, sorry Rich!
    >>> i1 == i2
    False
 
+
+Other Goodies
+-------------
+
 Sometimes you may want to create a class programmatically.
-``attrs`` won't let you down:
+``attrs`` won't let you down and gives you :func:`attr.make_class` :
 
 .. doctest::
 

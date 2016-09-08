@@ -5,7 +5,20 @@ Versions are year-based with a strict backwards compatibility policy.
 The third digit is only for regressions.
 
 
-16.1.0 (UNRELEASED)
+16.2.0 (UNRELEASED)
+-------------------
+
+Changes:
+^^^^^^^^
+
+- Converts now work with frozen classes.
+  `#76 <https://github.com/hynek/attrs/issues/76>`_
+
+
+----
+
+
+16.1.0 (2016-08-30)
 -------------------
 
 Backward-incompatible changes:
@@ -20,12 +33,14 @@ Deprecations:
 ^^^^^^^^^^^^^
 
 - Accessing ``Attribute`` instances on class objects is now deprecated and will stop working in 2017.
-  If you need introspection please use the ``__attrs_attrs__`` attribute that carries them too.
+  If you need introspection please use the ``__attrs_attrs__`` attribute or the ``attr.fields`` function that carry them too.
   In the future, the attributes that are defined on the class body and are usually overwritten in your ``__init__`` method are simply removed after ``@attr.s`` has been applied.
 
   This will remove the confusing error message if you write your own ``__init__`` and forget to initialize some attribute.
   Instead you will get a straightforward ``AttributeError``.
   In other words: decorated classes will work more like plain Python classes which was always ``attrs``'s goal.
+- The serious business aliases ``attr.attributes`` and ``attr.attr`` have been deprecated in favor of ``attr.attrs`` and ``attr.attrib`` which are much more consistent and frankly obvious in hindsight.
+  They will be purged from documentation immediately but there are no plans to actually remove them.
 
 
 Changes:
@@ -36,6 +51,12 @@ Changes:
 - ``attr.asdict``, ``attr.has`` and ``attr.fields`` are significantly faster.
   `#48 <https://github.com/hynek/attrs/issues/48>`_
   `#51 <https://github.com/hynek/attrs/issues/51>`_
+- Add ``attr.attrs`` and ``attr.attrib`` as a more consistent aliases for ``attr.s`` and ``attr.ib``.
+- Add ``frozen`` option to ``attr.s`` that will make instances best-effort immutable.
+  `#60 <https://github.com/hynek/attrs/issues/60>`_
+- ``attr.asdict`` now takes ``retain_collection_types`` as an argument.
+  If ``True``, it does not convert attributes of type ``tuple`` or ``set`` to ``list``.
+  `#69 <https://github.com/hynek/attrs/issues/69>`_
 
 
 ----
