@@ -8,13 +8,14 @@ from collections import OrderedDict, Sequence, Mapping
 
 import pytest
 
-from hypothesis import given, strategies as st
+from hypothesis import assume, given, strategies as st
 
 from .utils import simple_classes, nested_classes
 
 from attr._funcs import (
     asdict,
     assoc,
+    astuple,
     has,
 )
 from attr._make import (
@@ -22,6 +23,7 @@ from attr._make import (
     attributes,
     fields,
 )
+from attr.exceptions import AttrsAttributeNotFoundError
 
 MAPPING_TYPES = (dict, OrderedDict)
 SEQUENCE_TYPES = (list, tuple)
@@ -130,7 +132,7 @@ class TestAsDict(object):
         } == res
         assert isinstance(res, dict_factory)
 
-    @given(simple_classes, st.sampled_from(MAPPING_TYPES))
+    @given(simple_classes(), st.sampled_from(MAPPING_TYPES))
     def test_roundtrip(self, cls, dict_class):
         """
         Test dumping to dicts and back for Hypothesis-generated classes.
@@ -144,7 +146,7 @@ class TestAsDict(object):
 
         assert instance == roundtrip_instance
 
-    @given(simple_classes)
+    @given(simple_classes())
     def test_asdict_preserve_order(self, cls):
         """
         Field order should be preserved when dumping to OrderedDicts.
@@ -153,6 +155,150 @@ class TestAsDict(object):
         dict_instance = asdict(instance, dict_factory=OrderedDict)
 
         assert [a.name for a in fields(cls)] == list(dict_instance.keys())
+
+
+class TestAsTuple(object):
+    """
+    Tests for `astuple`.
+    """
+    @given(st.sampled_from(SEQUENCE_TYPES))
+    def test_shallow(self, C, tuple_factory):
+        """
+        Shallow astuple returns correct dict.
+        """
+        assert (tuple_factory([1, 2]) ==
+                astuple(C(x=1, y=2), False, tuple_factory=tuple_factory))
+
+    @given(st.sampled_from(SEQUENCE_TYPES))
+    def test_recurse(self, C, tuple_factory):
+        """
+        Deep astuple returns correct tuple.
+        """
+        assert (tuple_factory([tuple_factory([1, 2]),
+                              tuple_factory([3, 4])])
+                == astuple(C(
+                            C(1, 2),
+                            C(3, 4),
+                            ),
+                           tuple_factory=tuple_factory))
+
+    @given(nested_classes, st.sampled_from(SEQUENCE_TYPES))
+    def test_recurse_property(self, cls, tuple_class):
+        """
+        Property tests for recursive astuple.
+        """
+        obj = cls()
+        obj_tuple = astuple(obj, tuple_factory=tuple_class)
+
+        def assert_proper_tuple_class(obj, obj_tuple):
+            assert isinstance(obj_tuple, tuple_class)
+            for index, field in enumerate(fields(obj.__class__)):
+                field_val = getattr(obj, field.name)
+                if has(field_val.__class__):
+                    # This field holds a class, recurse the assertions.
+                    assert_proper_tuple_class(field_val, obj_tuple[index])
+
+        assert_proper_tuple_class(obj, obj_tuple)
+
+    @given(nested_classes, st.sampled_from(SEQUENCE_TYPES))
+    def test_recurse_retain(self, cls, tuple_class):
+        """
+        Property tests for asserting collection types are retained.
+        """
+        obj = cls()
+        obj_tuple = astuple(obj, tuple_factory=tuple_class,
+                            retain_collection_types=True)
+
+        def assert_proper_col_class(obj, obj_tuple):
+            # Iterate over all attributes, and if they are lists or mappings
+            # in the original, assert they are the same class in the dumped.
+            for index, field in enumerate(fields(obj.__class__)):
+                field_val = getattr(obj, field.name)
+                if has(field_val.__class__):
+                    # This field holds a class, recurse the assertions.
+                    assert_proper_col_class(field_val, obj_tuple[index])
+                elif isinstance(field_val, (list, tuple)):
+                    # This field holds a sequence of something.
+                    assert type(field_val) is type(obj_tuple[index])  # noqa: E721
+                    for obj_e, obj_tuple_e in zip(field_val, obj_tuple[index]):
+                        if has(obj_e.__class__):
+                            assert_proper_col_class(obj_e, obj_tuple_e)
+                elif isinstance(field_val, dict):
+                    orig = field_val
+                    tupled = obj_tuple[index]
+                    assert type(orig) is type(tupled)  # noqa: E721
+                    for obj_e, obj_tuple_e in zip(orig.items(),
+                                                  tupled.items()):
+                        if has(obj_e[0].__class__):  # Dict key
+                            assert_proper_col_class(obj_e[0], obj_tuple_e[0])
+                        if has(obj_e[1].__class__):  # Dict value
+                            assert_proper_col_class(obj_e[1], obj_tuple_e[1])
+
+        assert_proper_col_class(obj, obj_tuple)
+
+    @given(st.sampled_from(SEQUENCE_TYPES))
+    def test_filter(self, C, tuple_factory):
+        """
+        Attributes that are supposed to be skipped are skipped.
+        """
+        assert tuple_factory([tuple_factory([1, ]), ]) == astuple(C(
+            C(1, 2),
+            C(3, 4),
+        ), filter=lambda a, v: a.name != "y", tuple_factory=tuple_factory)
+
+    @given(container=st.sampled_from(SEQUENCE_TYPES))
+    def test_lists_tuples(self, container, C):
+        """
+        If recurse is True, also recurse into lists.
+        """
+        assert ((1, [(2, 3), (4, 5), "a"])
+                == astuple(C(1, container([C(2, 3), C(4, 5), "a"])))
+                )
+
+    @given(st.sampled_from(SEQUENCE_TYPES))
+    def test_dicts(self, C, tuple_factory):
+        """
+        If recurse is True, also recurse into dicts.
+        """
+        res = astuple(C(1, {"a": C(4, 5)}), tuple_factory=tuple_factory)
+        assert tuple_factory([1, {"a": tuple_factory([4, 5])}]) == res
+        assert isinstance(res, tuple_factory)
+
+    @given(container=st.sampled_from(SEQUENCE_TYPES))
+    def test_lists_tuples_retain_type(self, container, C):
+        """
+        If recurse and retain_collection_types are True, also recurse
+        into lists and do not convert them into list.
+        """
+        assert (
+            (1, container([(2, 3), (4, 5), "a"]))
+            == astuple(C(1, container([C(2, 3), C(4, 5), "a"])),
+                       retain_collection_types=True))
+
+    @given(container=st.sampled_from(MAPPING_TYPES))
+    def test_dicts_retain_type(self, container, C):
+        """
+        If recurse and retain_collection_types are True, also recurse
+        into lists and do not convert them into list.
+        """
+        assert (
+            (1, container({"a": (4, 5)}))
+            == astuple(C(1, container({"a": C(4, 5)})),
+                       retain_collection_types=True))
+
+    @given(simple_classes(), st.sampled_from(SEQUENCE_TYPES))
+    def test_roundtrip(self, cls, tuple_class):
+        """
+        Test dumping to tuple and back for Hypothesis-generated classes.
+        """
+        instance = cls()
+        tuple_instance = astuple(instance, tuple_factory=tuple_class)
+
+        assert isinstance(tuple_instance, tuple_class)
+
+        roundtrip_instance = cls(*tuple_instance)
+
+        assert instance == roundtrip_instance
 
 
 class TestHas(object):
@@ -186,11 +332,12 @@ class TestAssoc(object):
     """
     Tests for `assoc`.
     """
-    def test_empty(self):
+    @given(slots=st.booleans(), frozen=st.booleans())
+    def test_empty(self, slots, frozen):
         """
         Empty classes without changes get copied.
         """
-        @attributes
+        @attributes(slots=slots, frozen=frozen)
         class C(object):
             pass
 
@@ -200,36 +347,39 @@ class TestAssoc(object):
         assert i1 is not i2
         assert i1 == i2
 
+    @given(simple_classes())
     def test_no_changes(self, C):
         """
         No changes means a verbatim copy.
         """
-        i1 = C(1, 2)
+        i1 = C()
         i2 = assoc(i1)
 
         assert i1 is not i2
         assert i1 == i2
 
-    def test_change(self, C):
+    @given(simple_classes(), st.integers())
+    def test_change(self, C, val):
         """
         Changes work.
         """
-        i = assoc(C(1, 2), x=42)
-        assert C(42, 2) == i
+        # Take the first attribute, and change it.
+        assume(fields(C))  # Skip classes with no attributes.
+        original = C()
+        attribute = fields(C)[0]
+        changed = assoc(original, **{attribute.name: val})
+        assert getattr(changed, attribute.name) == val
 
+    @given(simple_classes())
     def test_unknown(self, C):
         """
         Wanting to change an unknown attribute raises a ValueError.
         """
-        @attributes
-        class C(object):
-            x = attr()
-            y = 42
-
-        with pytest.raises(ValueError) as e:
-            assoc(C(1), y=2)
+        # No generated class will have a four letter attribute.
+        with pytest.raises(AttrsAttributeNotFoundError) as e:
+            assoc(C(), aaaa=2)
         assert (
-            "y is not an attrs attribute on {cls!r}.".format(cls=C),
+            "aaaa is not an attrs attribute on {cls!r}.".format(cls=C),
         ) == e.value.args
 
     def test_frozen(self):

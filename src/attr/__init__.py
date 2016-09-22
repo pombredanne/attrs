@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 from ._funcs import (
     asdict,
     assoc,
+    astuple,
     has,
 )
 from ._make import (
@@ -24,7 +25,7 @@ from . import filters
 from . import validators
 
 
-__version__ = "16.2.0.dev0"
+__version__ = "16.3.0.dev0"
 
 __title__ = "attrs"
 __description__ = "Attributes Without Boilerplate"
@@ -46,6 +47,7 @@ __all__ = [
     "Factory",
     "NOTHING",
     "asdict",
+    "astuple",
     "assoc",
     "attr",
     "attrib",

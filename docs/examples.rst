@@ -117,7 +117,7 @@ Or if you want to use properties:
       ...
    AttributeError: can't set attribute
 
-`Sub-classing <https://www.youtube.com/watch?v=3MNVP9-hglc>`_ is bad for you, but ``attrs`` will still do what you'd hope for:
+`Subclassing <https://www.youtube.com/watch?v=3MNVP9-hglc>`_ is bad for you, but ``attrs`` will still do what you'd hope for:
 
 .. doctest::
 
@@ -160,8 +160,10 @@ Therefore ``@attr.s`` comes with the ``repr_ns`` option to set it manually:
 On Python 3 it overrides the implicit detection.
 
 
-Converting to Dictionaries
---------------------------
+.. _asdict:
+
+Converting to Collections Types
+-------------------------------
 
 When you have a class with data, it often is very convenient to transform that class into a :class:`dict` (for example if you want to serialize it to JSON):
 
@@ -196,15 +198,40 @@ For the common case where you want to :func:`include <attr.filters.include>` or 
    ...     login = attr.ib()
    ...     password = attr.ib()
    ...     id = attr.ib()
-   >>> attr.asdict(User("jane", "s33kred", 42), filter=attr.filters.exclude(User.password, int))
+   >>> attr.asdict(User("jane", "s33kred", 42),
+   ...                  filter=attr.filters.exclude(attr.fields(User).password, int))
    {'login': 'jane'}
    >>> @attr.s
    ... class C(object):
    ...     x = attr.ib()
    ...     y = attr.ib()
    ...     z = attr.ib()
-   >>> attr.asdict(C("foo", "2", 3), filter=attr.filters.include(int, C.x))
+   >>> attr.asdict(C("foo", "2", 3),
+   ...             filter=attr.filters.include(int, attr.fields(C).x))
    {'z': 3, 'x': 'foo'}
+
+Other times, all you want is a tuple and ``attrs`` won't let you down:
+
+.. doctest::
+
+   >>> import sqlite3
+   >>> import attr
+   >>> @attr.s
+   ... class Foo:
+   ...    a = attr.ib()
+   ...    b = attr.ib()
+   >>> foo = Foo(2, 3)
+   >>> with sqlite3.connect(":memory:") as conn:
+   ...    c = conn.cursor()
+   ...    c.execute("CREATE TABLE foo (x INTEGER PRIMARY KEY ASC, y)") #doctest: +ELLIPSIS
+   ...    c.execute("INSERT INTO foo VALUES (?, ?)", attr.astuple(foo)) #doctest: +ELLIPSIS
+   ...    foo2 = Foo(*c.execute("SELECT x, y FROM foo").fetchone())
+   <sqlite3.Cursor object at ...>
+   <sqlite3.Cursor object at ...>
+   >>> foo == foo2
+   True
+
+
 
 
 Defaults
@@ -309,7 +336,7 @@ Since the validator runs *after* the instance is initialized, you can refer to o
       ...
    TypeError: ("'x' must be <type 'int'> (got '42' that is a <type 'str'>).", Attribute(name='x', default=NOTHING, factory=NOTHING, validator=<instance_of validator for type <type 'int'>>), <type 'int'>, '42')
 
-If you like `zope.interface <http://docs.zope.org/zope.interface/api.html#zope-interface-interface-specification>`_, ``attrs`` also comes with a :func:`attr.validators.provides` validator:
+If you like `zope.interface <https://zopeinterface.readthedocs.io/en/latest/api.html#zope-interface-interface-specification>`_, ``attrs`` also comes with a :func:`attr.validators.provides` validator:
 
 .. doctest::
 
@@ -440,6 +467,13 @@ Slot classes are a little different than ordinary, dictionary-backed classes:
 
 - Since non-slot classes cannot be turned into slot classes after they have been created, ``attr.s(.., slots=True)`` will *replace* the class it is applied to with a copy.
   In almost all cases this isn't a problem, but we mention it for the sake of completeness.
+
+- Using :mod:`pickle` with slot classes requires pickle protocol 2 or greater.
+  Python 2 uses protocol 0 by default so the protocol needs to be specified.
+  Python 3 uses protocol 3 by default.
+  You can support protocol 0 and 1 by implementing :meth:`__getstate__ <object.__getstate__>` and :meth:`__setstate__ <object.__setstate__>` methods yourself.
+  Those methods are created for frozen slot classes because they won't pickle otherwise.
+  `Think twice <https://www.youtube.com/watch?v=7KnfGDajDQw>`_ before using :mod:`pickle` though.
 
 All in all, setting ``slots=True`` is usually a very good idea.
 
