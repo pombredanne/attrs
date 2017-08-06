@@ -13,6 +13,8 @@ except:  # Won't be an import error.
 
 import attr
 
+from attr._compat import PY2
+
 
 @attr.s
 class C1(object):
@@ -30,8 +32,16 @@ class C1(object):
     def staticmethod():
         return "staticmethod"
 
+    if not PY2:
+        def my_class(self):
+            return __class__  # NOQA: F821
 
-@attr.s(slots=True)
+        def my_super(self):
+            """Just to test out the no-arg super."""
+            return super().__repr__()
+
+
+@attr.s(slots=True, hash=True)
 class C1Slots(object):
     x = attr.ib(validator=attr.validators.instance_of(int))
     y = attr.ib()
@@ -46,6 +56,14 @@ class C1Slots(object):
     @staticmethod
     def staticmethod():
         return "staticmethod"
+
+    if not PY2:
+        def my_class(self):
+            return __class__  # NOQA: F821
+
+        def my_super(self):
+            """Just to test out the no-arg super."""
+            return super().__repr__()
 
 
 def test_slots_being_used():
@@ -106,7 +124,7 @@ def test_inheritance_from_nonslots():
     Note that a slots class inheriting from an ordinary class loses most of the
     benefits of slots classes, but it should still work.
     """
-    @attr.s(slots=True)
+    @attr.s(slots=True, hash=True)
     class C2Slots(C1):
         z = attr.ib()
 
@@ -159,7 +177,7 @@ def test_nonslots_these():
             return "staticmethod"
 
     C2Slots = attr.s(these={"x": attr.ib(), "y": attr.ib(), "z": attr.ib()},
-                     init=False, slots=True)(SimpleOrdinaryClass)
+                     init=False, slots=True, hash=True)(SimpleOrdinaryClass)
 
     c2 = C2Slots(x=1, y=2, z="test")
     assert 1 == c2.x
@@ -190,11 +208,11 @@ def test_inheritance_from_slots():
     """
     Inheriting from an attr slot class works.
     """
-    @attr.s(slots=True)
+    @attr.s(slots=True, hash=True)
     class C2Slots(C1Slots):
         z = attr.ib()
 
-    @attr.s(slots=True)
+    @attr.s(slots=True, hash=True)
     class C2(C1):
         z = attr.ib()
 
@@ -264,11 +282,11 @@ def test_bare_inheritance_from_slots():
         def staticmethod():
             return "staticmethod"
 
-    @attr.s(slots=True)
+    @attr.s(slots=True, hash=True)
     class C2Slots(C1BareSlots):
         z = attr.ib()
 
-    @attr.s(slots=True)
+    @attr.s(slots=True, hash=True)
     class C2(C1Bare):
         z = attr.ib()
 
@@ -298,3 +316,52 @@ def test_bare_inheritance_from_slots():
     hash(c2)  # Just to assert it doesn't raise.
 
     assert {"x": 1, "y": 2, "z": "test"} == attr.asdict(c2)
+
+
+@pytest.mark.skipif(PY2, reason="closure cell rewriting is PY3-only.")
+def test_closure_cell_rewriting():
+    """
+    Slot classes support proper closure cell rewriting.
+
+    This affects features like `__class__` and the no-arg super().
+    """
+    non_slot_instance = C1(x=1, y="test")
+    slot_instance = C1Slots(x=1, y="test")
+
+    assert non_slot_instance.my_class() is C1
+    assert slot_instance.my_class() is C1Slots
+
+    # Just assert they return something, and not an exception.
+    assert non_slot_instance.my_super()
+    assert slot_instance.my_super()
+
+
+@pytest.mark.skipif(PY2, reason="closure cell rewriting is PY3-only.")
+def test_closure_cell_rewriting_inheritance():
+    """
+    Slot classes support proper closure cell rewriting when inheriting.
+
+    This affects features like `__class__` and the no-arg super().
+    """
+    @attr.s
+    class C2(C1):
+        def my_subclass(self):
+            return __class__  # NOQA: F821
+
+    @attr.s
+    class C2Slots(C1Slots):
+        def my_subclass(self):
+            return __class__  # NOQA: F821
+
+    non_slot_instance = C2(x=1, y="test")
+    slot_instance = C2Slots(x=1, y="test")
+
+    assert non_slot_instance.my_class() is C1
+    assert slot_instance.my_class() is C1Slots
+
+    # Just assert they return something, and not an exception.
+    assert non_slot_instance.my_super()
+    assert slot_instance.my_super()
+
+    assert non_slot_instance.my_subclass() is C2
+    assert slot_instance.my_subclass() is C2Slots

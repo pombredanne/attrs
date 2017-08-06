@@ -1,22 +1,25 @@
-=====================================
-attrs: Attributes Without Boilerplate
-=====================================
+.. image:: http://www.attrs.org/en/latest/_static/attrs_logo.png
+   :alt: attrs Logo
+
+==================================
+attrs: Classes Without Boilerplate
+==================================
 
 .. image:: https://readthedocs.org/projects/attrs/badge/?version=stable
-   :target: http://attrs.readthedocs.io/en/stable/?badge=stable
+   :target: http://www.attrs.org/en/stable/?badge=stable
    :alt: Documentation Status
 
-.. image:: https://travis-ci.org/hynek/attrs.svg?branch=master
-   :target: https://travis-ci.org/hynek/attrs
-   :alt: CI status
+.. image:: https://travis-ci.org/python-attrs/attrs.svg?branch=master
+   :target: https://travis-ci.org/python-attrs/attrs
+   :alt: CI Status
 
-.. image:: https://codecov.io/github/hynek/attrs/branch/master/graph/badge.svg
-  :target: https://codecov.io/github/hynek/attrs
-  :alt: Test Coverage
+.. image:: https://codecov.io/github/python-attrs/attrs/branch/master/graph/badge.svg
+   :target: https://codecov.io/github/python-attrs/attrs
+   :alt: Test Coverage
 
 .. teaser-begin
 
-``attrs`` is the Python package that will bring back the **joy** of **writing classes** by relieving you from the drudgery of implementing object protocols (aka `dunder <http://nedbatchelder.com/blog/200605/dunder.html>`_ methods).
+``attrs`` is the Python package that will bring back the **joy** of **writing classes** by relieving you from the drudgery of implementing object protocols (aka `dunder <https://nedbatchelder.com/blog/200605/dunder.html>`_ methods).
 
 Its main goal is to help you to write **concise** and **correct** software without slowing down your code.
 
@@ -30,28 +33,28 @@ For that, it gives you a class decorator and a way to declaratively define the a
 
    >>> import attr
    >>> @attr.s
-   ... class C(object):
-   ...     x = attr.ib(default=42)
-   ...     y = attr.ib(default=attr.Factory(list))
+   ... class SomeClass(object):
+   ...     a_number = attr.ib(default=42)
+   ...     list_of_numbers = attr.ib(default=attr.Factory(list))
    ...
-   ...     def hard_math(self, z):
-   ...         return self.x * self.y * z
-   >>> i = C(x=1, y=2)
-   >>> i
-   C(x=1, y=2)
-   >>> i.hard_math(3)
-   6
-   >>> i == C(1, 2)
+   ...     def hard_math(self, another_number):
+   ...         return self.a_number + sum(self.list_of_numbers) * another_number
+   >>> sc = SomeClass(1, [1, 2, 3])
+   >>> sc
+   SomeClass(a_number=1, list_of_numbers=[1, 2, 3])
+   >>> sc.hard_math(3)
+   19
+   >>> sc == SomeClass(1, [1, 2, 3])
    True
-   >>> i != C(2, 1)
+   >>> sc != SomeClass(2, [3, 2, 1])
    True
-   >>> attr.asdict(i)
-   {'y': 2, 'x': 1}
-   >>> C()
-   C(x=42, y=[])
-   >>> C2 = attr.make_class("C2", ["a", "b"])
-   >>> C2("foo", "bar")
-   C2(a='foo', b='bar')
+   >>> attr.asdict(sc)
+   {'a_number': 1, 'list_of_numbers': [1, 2, 3]}
+   >>> SomeClass()
+   SomeClass(a_number=42, list_of_numbers=[])
+   >>> C = attr.make_class("C", ["a", "b"])
+   >>> C("foo", "bar")
+   C(a='foo', b='bar')
 
 
 After *declaring* your attributes ``attrs`` gives you:
@@ -74,15 +77,26 @@ Never again violate the `single responsibility principle <https://en.wikipedia.o
 Testimonials
 ============
 
-  I’m looking forward to is being able to program in Python-with-attrs everywhere.
-  It exerts a subtle, but positive, design influence in all the codebases I’ve see it used in.
+  *I’m looking forward to is being able to program in Python-with-attrs everywhere.
+  It exerts a subtle, but positive, design influence in all the codebases I’ve see it used in.*
 
-  -- Glyph Lefkowitz, inventor of Twisted and Software Developer at Rackspace in `The One Python Library Everyone Needs <https://glyph.twistedmatrix.com/2016/08/attrs.html>`_
+  -- **Glyph Lefkowitz**, creator of `Twisted <https://twistedmatrix.com/>`_, `Automat <https://pypi.python.org/pypi/Automat>`_, and other open source software, in `The One Python Library Everyone Needs <https://glyph.twistedmatrix.com/2016/08/attrs.html>`_
 
 
-  I'm increasingly digging your attr.ocity. Good job!
+  *I'm increasingly digging your attr.ocity. Good job!*
 
-  -- Łukasz Langa, prolific CPython core developer and Production Engineer at Facebook
+  -- **Łukasz Langa**, prolific CPython core developer and Production Engineer at Facebook
+
+
+  *Writing a fully-functional class using attrs takes me less time than writing this testimonial.*
+
+  -- **Amber Hawkie Brown**, Twisted Release Manager and Computer Owl
+
+
+  *attrs—classes for humans.  I like it.*
+
+  -- **Kenneth Reitz**, author of `requests <http://www.python-requests.org/>`_, Python Overlord at Heroku, `on paper no less <https://twitter.com/hynek/status/866817877650751488>`_
+
 
 .. -end-
 
@@ -91,8 +105,10 @@ Testimonials
 Project Information
 ===================
 
-``attrs`` is released under the `MIT <http://choosealicense.com/licenses/mit/>`_ license,
-its documentation lives at `Read the Docs <https://attrs.readthedocs.io/>`_,
-the code on `GitHub <https://github.com/hynek/attrs>`_,
+``attrs`` is released under the `MIT <https://choosealicense.com/licenses/mit/>`_ license,
+its documentation lives at `Read the Docs <http://www.attrs.org/>`_,
+the code on `GitHub <https://github.com/python-attrs/attrs>`_,
 and the latest release on `PyPI <https://pypi.org/project/attrs/>`_.
 It’s rigorously tested on Python 2.7, 3.4+, and PyPy.
+
+If you'd like to contribute you're most welcome and we've written `a little guide <http://www.attrs.org/en/latest/contributing.html>`_ to get you started!

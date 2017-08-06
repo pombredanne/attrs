@@ -18,8 +18,9 @@ from attr._make import (
     _add_init,
     _add_repr,
     attr,
-    make_class,
+    attributes,
     fields,
+    make_class,
 )
 from attr.validators import instance_of
 
@@ -28,12 +29,16 @@ CmpC = simple_class(cmp=True)
 CmpCSlots = simple_class(cmp=True, slots=True)
 ReprC = simple_class(repr=True)
 ReprCSlots = simple_class(repr=True, slots=True)
+
+# HashC is hashable by explicit definition while HashCSlots is hashable
+# implicitly.
 HashC = simple_class(hash=True)
-HashCSlots = simple_class(hash=True, slots=True)
+HashCSlots = simple_class(hash=None, cmp=True, frozen=True, slots=True)
 
 
 class InitC(object):
     __attrs_attrs__ = [simple_attr("a"), simple_attr("b")]
+
 
 InitC = _add_init(InitC, False)
 
@@ -164,7 +169,7 @@ class TestAddRepr(object):
     """
     Tests for `_add_repr`.
     """
-    @given(booleans())
+    @pytest.mark.parametrize("slots", [True, False])
     def test_repr(self, slots):
         """
         If `repr` is False, ignore that attribute.
@@ -193,19 +198,98 @@ class TestAddRepr(object):
 
         assert "C(_x=42)" == repr(i)
 
+    @given(add_str=booleans(), slots=booleans())
+    def test_str(self, add_str, slots):
+        """
+        If str is True, it returns the same as repr.
+
+        This only makes sense when subclassing a class with an poor __str__
+        (like Exceptions).
+        """
+        @attributes(str=add_str, slots=slots)
+        class Error(Exception):
+            x = attr()
+
+        e = Error(42)
+
+        assert (str(e) == repr(e)) is add_str
+
+    def test_str_no_repr(self):
+        """
+        Raises a ValueError if repr=False and str=True.
+        """
+        with pytest.raises(ValueError) as e:
+            simple_class(repr=False, str=True)
+
+        assert (
+            "__str__ can only be generated if a __repr__ exists."
+        ) == e.value.args[0]
+
 
 class TestAddHash(object):
     """
     Tests for `_add_hash`.
     """
+    def test_enforces_type(self):
+        """
+        The `hash` argument to both attrs and attrib must be None, True, or
+        False.
+        """
+        exc_args = ("Invalid value for hash.  Must be True, False, or None.",)
+
+        with pytest.raises(TypeError) as e:
+            make_class("C", {}, hash=1),
+
+        assert exc_args == e.value.args
+
+        with pytest.raises(TypeError) as e:
+            make_class("C", {"a": attr(hash=1)}),
+
+        assert exc_args == e.value.args
+
     @given(booleans())
-    def test_hash(self, slots):
+    def test_hash_attribute(self, slots):
         """
-        If `hash` is False, ignore that attribute.
+        If `hash` is False on an attribute, ignore that attribute.
         """
-        C = make_class("C", {"a": attr(hash=False), "b": attr()}, slots=slots)
+        C = make_class("C", {"a": attr(hash=False), "b": attr()},
+                       slots=slots, hash=True)
 
         assert hash(C(1, 2)) == hash(C(2, 2))
+
+    @given(booleans())
+    def test_hash_attribute_mirrors_cmp(self, cmp):
+        """
+        If `hash` is None, the hash generation mirrors `cmp`.
+        """
+        C = make_class("C", {"a": attr(cmp=cmp)}, cmp=True, frozen=True)
+
+        if cmp:
+            assert C(1) != C(2)
+            assert hash(C(1)) != hash(C(2))
+            assert hash(C(1)) == hash(C(1))
+        else:
+            assert C(1) == C(2)
+            assert hash(C(1)) == hash(C(2))
+
+    @given(booleans())
+    def test_hash_mirrors_cmp(self, cmp):
+        """
+        If `hash` is None, the hash generation mirrors `cmp`.
+        """
+        C = make_class("C", {"a": attr()}, cmp=cmp, frozen=True)
+
+        i = C(1)
+
+        assert i == i
+        assert hash(i) == hash(i)
+
+        if cmp:
+            assert C(1) == C(1)
+            assert hash(C(1)) == hash(C(1))
+        else:
+            assert C(1) != C(1)
+            assert hash(C(1)) != hash(C(1))
 
     @pytest.mark.parametrize("cls", [HashC, HashCSlots])
     def test_hash_works(self, cls):
@@ -213,6 +297,20 @@ class TestAddHash(object):
         __hash__ returns different hashes for different values.
         """
         assert hash(cls(1, 2)) != hash(cls(1, 1))
+
+    def test_hash_default(self):
+        """
+        Classes are not hashable by default.
+        """
+        C = make_class("C", {})
+
+        with pytest.raises(TypeError) as e:
+            hash(C())
+
+        assert e.value.args[0] in (
+            "'C' objects are unhashable",  # PyPy
+            "unhashable type: 'C'",  # CPython
+        )
 
 
 class TestAddInit(object):

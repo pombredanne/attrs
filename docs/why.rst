@@ -37,12 +37,12 @@ or::
 Why would you want to write ``customer[2]`` instead of ``customer.first_name``?
 
 Don't get me started when you add nesting.
-If you've never ran into mysterious tuples you had no idea what the hell they meant while debugging, you're much smarter then I am.
+If you've never ran into mysterious tuples you had no idea what the hell they meant while debugging, you're much smarter then yours truly.
 
 Using proper classes with names and types makes program code much more readable and comprehensible_.
 Especially when trying to grok a new piece of software or returning to old code after several months.
 
-.. _comprehensible: http://arxiv.org/pdf/1304.5257.pdf
+.. _comprehensible: https://arxiv.org/pdf/1304.5257.pdf
 
 
 Extendability
@@ -97,7 +97,39 @@ The difference between :func:`collections.namedtuple`\ s and classes decorated b
 
 This can easily lead to surprising and unintended behaviors.
 
-Other than that, ``attrs`` also adds nifty features like validators and default values.
+Opinions on object immutability vary.
+With ``attrs``, the choice is yours.
+Immutable classes are created by passing a ``frozen=True`` argument to the :func:`attr.s` decorator.
+By default, however, classes created by ``attrs`` are regular Python classes and therefore mutable:
+
+.. doctest::
+
+   >>> import attr
+   >>> @attr.s
+   ... class Customer(object):
+   ...     first_name = attr.ib()
+   >>> c1 = Customer(first_name="Kaitlyn")
+   >>> c1.first_name
+   'Kaitlyn'
+   >>> c1.first_name = "Katelyn"
+   >>> c1.first_name
+   'Katelyn'
+
+…while classes created with :func:`collections.namedtuple` inherit from tuple and are therefore always immutable:
+
+.. doctest::
+
+   >>> from collections import namedtuple
+   >>> Customer = namedtuple("Customer", "first_name")
+   >>> c1 = Customer(first_name="Kaitlyn")
+   >>> c1.first_name
+   'Kaitlyn'
+   >>> c1.first_name = "Katelyn"
+   Traceback (most recent call last):
+     File "<stdin>", line 1, in <module>
+   AttributeError: can't set attribute
+
+Other than that, ``attrs`` also adds nifty features like validators, converters, and default values.
 
 .. _tuple: https://docs.python.org/2/tutorial/datastructures.html#tuples-and-sequences
 
@@ -121,7 +153,7 @@ In other words: if your dict has a fixed and known set of keys, it is an object,
 …hand-written classes?
 ----------------------
 
-While I'm a fan of all things artisanal, writing the same nine methods all over again doesn't qualify for me.
+While we're fans of all things artisanal, writing the same nine methods all over again doesn't qualify for me.
 I usually manage to get some typos inside and there's simply more code that can break and thus has to be tested.
 
 To bring it into perspective, the equivalent of
@@ -193,44 +225,5 @@ which is quite a mouthful and it doesn't even use any of ``attrs``'s more advanc
 Also: no tests whatsoever.
 And who will guarantee you, that you don't accidentally flip the ``<`` in your tenth implementation of ``__gt__``?
 
-If you don't care and like typing, I'm not gonna stop you.
+If you don't care and like typing, we're not gonna stop you.
 But if you ever get sick of the repetitiveness, ``attrs`` will be waiting for you. :)
-
-
-…characteristic?
-----------------
-
-`characteristic <https://characteristic.readthedocs.io/>`_ is a very similar and fairly popular project of mine.
-So why the self-fork?
-Basically after nearly a year of usage I ran into annoyances and regretted certain decisions I made early-on to make too many people happy.
-In the end, *I* wasn't happy using it anymore.
-
-So I learned my lesson and ``attrs`` is the result of that.
-
-
-Reasons For Forking
-^^^^^^^^^^^^^^^^^^^
-
-- Fixing those aforementioned annoyances would introduce more complexity.
-  More complexity means more bugs.
-- Certain unused features make other common features complicated or impossible.
-  Prime example is the ability write your own initializers and make the generated one cooperate with it.
-  The new logic is much simpler allowing for writing optimal initializers.
-- I want it to be possible to gradually move from ``characteristic`` to ``attrs``.
-  A peaceful co-existence is much easier if it's separate packages altogether.
-- My libraries have very strict backward-compatibility policies and it would take years to get rid of those annoyances while they shape the implementation of other features.
-- The name is tooo looong.
-
-
-Main Differences
-^^^^^^^^^^^^^^^^
-
-- The attributes are defined *within* the class definition such that code analyzers know about their existence.
-  This is useful in IDEs like PyCharm or linters like PyLint.
-  ``attrs``'s classes look much more idiomatic than ``characteristic``'s.
-  Since it's useful to use ``attrs`` with classes you don't control (e.g. Django models), a similar way to ``characteristic``'s is still supported.
-- The names are held shorter and easy to both type and read.
-- It is generally more opinionated towards typical uses.
-  This ensures I'll not wake up in a year hating to use it.
-- The generated ``__init__`` methods are faster because of certain features that have been left out intentionally.
-  The generated code should be as fast as hand-written one.

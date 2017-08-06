@@ -1,7 +1,10 @@
 from __future__ import absolute_import, division, print_function
+
 import pickle
 
 import pytest
+import six
+
 from hypothesis import given
 from hypothesis.strategies import booleans
 
@@ -22,6 +25,7 @@ class C1(object):
 class C1Slots(object):
     x = attr.ib(validator=attr.validators.instance_of(int))
     y = attr.ib()
+
 
 foo = None
 
@@ -69,9 +73,30 @@ class Frozen(object):
     x = attr.ib()
 
 
+@attr.s
+class SubFrozen(Frozen):
+    y = attr.ib()
+
+
 @attr.s(frozen=True, slots=False)
 class FrozenNoSlots(object):
     x = attr.ib()
+
+
+class Meta(type):
+    pass
+
+
+@attr.s
+@six.add_metaclass(Meta)
+class WithMeta(object):
+    pass
+
+
+@attr.s(slots=True)
+@six.add_metaclass(Meta)
+class WithMetaSlots(object):
+    pass
 
 
 class TestDarkMagic(object):
@@ -85,9 +110,9 @@ class TestDarkMagic(object):
         """
         assert (
             Attribute(name="x", default=foo, validator=None,
-                      repr=True, cmp=True, hash=True, init=True),
+                      repr=True, cmp=True, hash=None, init=True),
             Attribute(name="y", default=attr.Factory(list), validator=None,
-                      repr=True, cmp=True, hash=True, init=True),
+                      repr=True, cmp=True, hash=None, init=True),
         ) == attr.fields(cls)
 
     @pytest.mark.parametrize("cls", [C1, C1Slots])
@@ -134,9 +159,9 @@ class TestDarkMagic(object):
         PC = attr.make_class("PC", ["a", "b"], slots=slots, frozen=frozen)
         assert (
             Attribute(name="a", default=NOTHING, validator=None,
-                      repr=True, cmp=True, hash=True, init=True),
+                      repr=True, cmp=True, hash=None, init=True),
             Attribute(name="b", default=NOTHING, validator=None,
-                      repr=True, cmp=True, hash=True, init=True),
+                      repr=True, cmp=True, hash=None, init=True),
         ) == attr.fields(PC)
 
     @pytest.mark.parametrize("cls", [Sub, SubSlots])
@@ -158,7 +183,7 @@ class TestDarkMagic(object):
     def test_subclass_without_extra_attrs(self, base):
         """
         Sub-classing (where the subclass does not have extra attrs) still
-        behaves the same as a subclss with extra attrs.
+        behaves the same as a subclass with extra attrs.
         """
         class Sub2(base):
             pass
@@ -180,6 +205,9 @@ class TestDarkMagic(object):
 
         with pytest.raises(FrozenInstanceError) as e:
             frozen.x = 2
+
+        with pytest.raises(FrozenInstanceError) as e:
+            del frozen.x
 
         assert e.value.args[0] == "can't set attribute"
         assert 1 == frozen.x
@@ -210,3 +238,36 @@ class TestDarkMagic(object):
         else:
             obj = cls(123)
         assert repr(obj) == repr(pickle.loads(pickle.dumps(obj, protocol)))
+
+    def test_subclassing_frozen_gives_frozen(self):
+        """
+        The frozen-ness of classes is inherited.  Subclasses of frozen classes
+        are also frozen and can be instantiated.
+        """
+        i = SubFrozen("foo", "bar")
+
+        assert i.x == "foo"
+        assert i.y == "bar"
+
+    @pytest.mark.parametrize("cls", [WithMeta, WithMetaSlots])
+    def test_metaclass_preserved(self, cls):
+        """
+        Metaclass data is preserved.
+        """
+        assert Meta == type(cls)
+
+    def test_default_decorator(self):
+        """
+        Default decorator sets the default and the respective method gets
+        called.
+        """
+        @attr.s
+        class C(object):
+            x = attr.ib(default=1)
+            y = attr.ib()
+
+            @y.default
+            def compute(self):
+                return self.x + 1
+
+        assert C(1, 2) == C()

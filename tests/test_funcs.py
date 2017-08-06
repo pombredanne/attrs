@@ -8,22 +8,25 @@ from collections import OrderedDict, Sequence, Mapping
 
 import pytest
 
-from hypothesis import assume, given, strategies as st
+from hypothesis import assume, given, strategies as st, settings, HealthCheck
 
 from .utils import simple_classes, nested_classes
 
-from attr._funcs import (
+from attr import (
+    attr,
+    attributes,
     asdict,
     assoc,
     astuple,
+    evolve,
+    fields,
     has,
 )
-from attr._make import (
-    attr,
-    attributes,
-    fields,
-)
+
 from attr.exceptions import AttrsAttributeNotFoundError
+from attr.validators import instance_of
+from attr._compat import TYPE
+
 
 MAPPING_TYPES = (dict, OrderedDict)
 SEQUENCE_TYPES = (list, tuple)
@@ -57,6 +60,7 @@ class TestAsDict(object):
         ), dict_factory=dict_class)
 
     @given(nested_classes, st.sampled_from(MAPPING_TYPES))
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_recurse_property(self, cls, dict_class):
         """
         Property tests for recursive asdict.
@@ -132,10 +136,13 @@ class TestAsDict(object):
         } == res
         assert isinstance(res, dict_factory)
 
-    @given(simple_classes(), st.sampled_from(MAPPING_TYPES))
+    @given(simple_classes(private_attrs=False), st.sampled_from(MAPPING_TYPES))
     def test_roundtrip(self, cls, dict_class):
         """
         Test dumping to dicts and back for Hypothesis-generated classes.
+
+        Private attributes don't round-trip (the attribute name is different
+        than the initializer argument).
         """
         instance = cls()
         dict_instance = asdict(instance, dict_factory=dict_class)
@@ -183,6 +190,7 @@ class TestAsTuple(object):
                            tuple_factory=tuple_factory))
 
     @given(nested_classes, st.sampled_from(SEQUENCE_TYPES))
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_recurse_property(self, cls, tuple_class):
         """
         Property tests for recursive astuple.
@@ -201,6 +209,7 @@ class TestAsTuple(object):
         assert_proper_tuple_class(obj, obj_tuple)
 
     @given(nested_classes, st.sampled_from(SEQUENCE_TYPES))
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_recurse_retain(self, cls, tuple_class):
         """
         Property tests for asserting collection types are retained.
@@ -219,7 +228,8 @@ class TestAsTuple(object):
                     assert_proper_col_class(field_val, obj_tuple[index])
                 elif isinstance(field_val, (list, tuple)):
                     # This field holds a sequence of something.
-                    assert type(field_val) is type(obj_tuple[index])  # noqa: E721
+                    expected_type = type(obj_tuple[index])
+                    assert type(field_val) is expected_type  # noqa: E721
                     for obj_e, obj_tuple_e in zip(field_val, obj_tuple[index]):
                         if has(obj_e.__class__):
                             assert_proper_col_class(obj_e, obj_tuple_e)
@@ -342,7 +352,8 @@ class TestAssoc(object):
             pass
 
         i1 = C()
-        i2 = assoc(i1)
+        with pytest.deprecated_call():
+            i2 = assoc(i1)
 
         assert i1 is not i2
         assert i1 == i2
@@ -353,31 +364,42 @@ class TestAssoc(object):
         No changes means a verbatim copy.
         """
         i1 = C()
-        i2 = assoc(i1)
+        with pytest.deprecated_call():
+            i2 = assoc(i1)
 
         assert i1 is not i2
         assert i1 == i2
 
-    @given(simple_classes(), st.integers())
-    def test_change(self, C, val):
+    @given(simple_classes(), st.data())
+    def test_change(self, C, data):
         """
         Changes work.
         """
         # Take the first attribute, and change it.
         assume(fields(C))  # Skip classes with no attributes.
+        field_names = [a.name for a in fields(C)]
         original = C()
-        attribute = fields(C)[0]
-        changed = assoc(original, **{attribute.name: val})
-        assert getattr(changed, attribute.name) == val
+        chosen_names = data.draw(st.sets(st.sampled_from(field_names)))
+        change_dict = {name: data.draw(st.integers())
+                       for name in chosen_names}
+
+        with pytest.deprecated_call():
+            changed = assoc(original, **change_dict)
+
+        for k, v in change_dict.items():
+            assert getattr(changed, k) == v
 
     @given(simple_classes())
     def test_unknown(self, C):
         """
-        Wanting to change an unknown attribute raises a ValueError.
+        Wanting to change an unknown attribute raises an
+        AttrsAttributeNotFoundError.
         """
         # No generated class will have a four letter attribute.
-        with pytest.raises(AttrsAttributeNotFoundError) as e:
+        with pytest.raises(AttrsAttributeNotFoundError) as e, \
+                pytest.deprecated_call():
             assoc(C(), aaaa=2)
+
         assert (
             "aaaa is not an attrs attribute on {cls!r}.".format(cls=C),
         ) == e.value.args
@@ -391,4 +413,119 @@ class TestAssoc(object):
             x = attr()
             y = attr()
 
-        assert C(3, 2) == assoc(C(1, 2), x=3)
+        with pytest.deprecated_call():
+            assert C(3, 2) == assoc(C(1, 2), x=3)
+
+    def test_warning(self):
+        """
+        DeprecationWarning points to the correct file.
+        """
+        @attributes
+        class C(object):
+            x = attr()
+
+        with pytest.warns(DeprecationWarning) as wi:
+            assert C(2) == assoc(C(1), x=2)
+
+        assert __file__ == wi.list[0].filename
+
+
+class TestEvolve(object):
+    """
+    Tests for `evolve`.
+    """
+    @given(slots=st.booleans(), frozen=st.booleans())
+    def test_empty(self, slots, frozen):
+        """
+        Empty classes without changes get copied.
+        """
+        @attributes(slots=slots, frozen=frozen)
+        class C(object):
+            pass
+
+        i1 = C()
+        i2 = evolve(i1)
+
+        assert i1 is not i2
+        assert i1 == i2
+
+    @given(simple_classes())
+    def test_no_changes(self, C):
+        """
+        No changes means a verbatim copy.
+        """
+        i1 = C()
+        i2 = evolve(i1)
+
+        assert i1 is not i2
+        assert i1 == i2
+
+    @given(simple_classes(), st.data())
+    def test_change(self, C, data):
+        """
+        Changes work.
+        """
+        # Take the first attribute, and change it.
+        assume(fields(C))  # Skip classes with no attributes.
+        field_names = [a.name for a in fields(C)]
+        original = C()
+        chosen_names = data.draw(st.sets(st.sampled_from(field_names)))
+        # We pay special attention to private attributes, they should behave
+        # like in `__init__`.
+        change_dict = {name.replace('_', ''): data.draw(st.integers())
+                       for name in chosen_names}
+        changed = evolve(original, **change_dict)
+        for name in chosen_names:
+            assert getattr(changed, name) == change_dict[name.replace('_', '')]
+
+    @given(simple_classes())
+    def test_unknown(self, C):
+        """
+        Wanting to change an unknown attribute raises an
+        AttrsAttributeNotFoundError.
+        """
+        # No generated class will have a four letter attribute.
+        with pytest.raises(TypeError) as e:
+            evolve(C(), aaaa=2)
+        expected = "__init__() got an unexpected keyword argument 'aaaa'"
+        assert (expected,) == e.value.args
+
+    def test_validator_failure(self):
+        """
+        TypeError isn't swallowed when validation fails within evolve.
+        """
+        @attributes
+        class C(object):
+            a = attr(validator=instance_of(int))
+
+        with pytest.raises(TypeError) as e:
+            evolve(C(a=1), a="some string")
+        m = e.value.args[0]
+        assert m.startswith("'a' must be <{type} 'int'>".format(type=TYPE))
+
+    def test_private(self):
+        """
+        evolve() acts as `__init__` with regards to private attributes.
+        """
+        @attributes
+        class C(object):
+            _a = attr()
+
+        assert evolve(C(1), a=2)._a == 2
+
+        with pytest.raises(TypeError):
+            evolve(C(1), _a=2)
+
+        with pytest.raises(TypeError):
+            evolve(C(1), a=3, _a=2)
+
+    def test_non_init_attrs(self):
+        """
+        evolve() handles `init=False` attributes.
+        """
+        @attributes
+        class C(object):
+            a = attr()
+            b = attr(init=False, default=0)
+
+        assert evolve(C(1), a=2).a == 2
